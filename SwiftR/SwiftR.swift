@@ -360,11 +360,11 @@ open class SignalR: NSObject, SwiftRWebDelegate {
             jsQueue.append((script, callback))
             return
         }
-
-        webView.evaluateJavaScript(script, completionHandler: { (result, _) in
-            callback?(result)
-        })
-
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript(script, completionHandler: { (result, _) in
+                callback?(result)
+            })
+        }
     }
     
     func applyUserAgent(_ userAgent: String) {
@@ -395,7 +395,9 @@ open class SignalR: NSObject, SwiftRWebDelegate {
     
     public func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         if shouldIgnoreCertificates {
-            completionHandler(.useCredential, challenge.protectionSpace.serverTrust.map(URLCredential.init))
+            DispatchQueue.global(priority: .default).async {
+                completionHandler(.useCredential, challenge.protectionSpace.serverTrust.map(URLCredential.init))
+            }
         } else {
             completionHandler(.performDefaultHandling, nil)
         }
@@ -405,15 +407,17 @@ open class SignalR: NSObject, SwiftRWebDelegate {
     
     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         if let id = message.body as? String {
-            webView.evaluateJavaScript("readMessage('\(id)')", completionHandler: { [weak self] (msg, err) in
-                if let m = msg as? [String: Any] {
-                    self?.processMessage(m)
-                } else if let e = err {
-                    print("SwiftR unable to process message \(id): \(e)")
-                } else {
-                    print("SwiftR unable to process message \(id)")
-                }
-            })
+            DispatchQueue.main.async { [weak self] in
+                self?.webView.evaluateJavaScript("readMessage('\(id)')", completionHandler: { [weak self] (msg, err) in
+                    if let m = msg as? [String: Any] {
+                        self?.processMessage(m)
+                    } else if let e = err {
+                        print("SwiftR unable to process message \(id): \(e)")
+                    } else {
+                        print("SwiftR unable to process message \(id)")
+                    }
+                })
+            }
         }
     }
     
